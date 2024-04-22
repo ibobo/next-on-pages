@@ -1,3 +1,4 @@
+import { getRequestContext } from '../../../src/api';
 import type { CacheAdaptor, IncrementalCacheValue } from '../../cache';
 import { SUSPENSE_CACHE_URL } from '../../cache';
 
@@ -58,14 +59,19 @@ export async function handleSuspenseCacheRequest(request: Request) {
 				});
 			}
 			case 'POST': {
-				// Update the value in the cache.
-				const body = await request.json<IncrementalCacheValue>();
-				// Falling back to the cache tags header for Next.js 13.5+
-				if (body.data.tags === undefined) {
-					body.tags ??= getTagsFromHeader(request, CACHE_TAGS_HEADER) ?? [];
-				}
+				// Avoid waiting for the cache to update before responding.
+				getRequestContext().ctx.waitUntil(
+					(async () => {
+						// Update the value in the cache.
+						const body = await request.json<IncrementalCacheValue>();
+						// Falling back to the cache tags header for Next.js 13.5+
+						if (body.data.tags === undefined) {
+							body.tags ??= getTagsFromHeader(request, CACHE_TAGS_HEADER) ?? [];
+						}
 
-				await cache.set(cacheKey, body);
+						await cache.set(cacheKey, body);
+					})(),
+				);
 
 				return new Response(null, { status: 200 });
 			}
