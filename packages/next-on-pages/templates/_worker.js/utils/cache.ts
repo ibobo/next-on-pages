@@ -59,19 +59,28 @@ export async function handleSuspenseCacheRequest(request: Request) {
 				});
 			}
 			case 'POST': {
-				// Avoid waiting for the cache to update before responding.
-				getRequestContext().ctx.waitUntil(
-					(async () => {
-						// Update the value in the cache.
-						const body = await request.json<IncrementalCacheValue>();
-						// Falling back to the cache tags header for Next.js 13.5+
-						if (body.data.tags === undefined) {
-							body.tags ??= getTagsFromHeader(request, CACHE_TAGS_HEADER) ?? [];
-						}
+				// Retrieve request context.
+				const ctx = (globalThis as unknown as Record<symbol, unknown>)[
+					Symbol.for('__cloudflare-request-context__')
+				] as ExecutionContext;
 
-						await cache.set(cacheKey, body);
-					})(),
-				);
+				const update = async () => {
+					// Update the value in the cache.
+					const body = await request.json<IncrementalCacheValue>();
+					// Falling back to the cache tags header for Next.js 13.5+
+					if (body.data.tags === undefined) {
+						body.tags ??= getTagsFromHeader(request, CACHE_TAGS_HEADER) ?? [];
+					}
+
+					await cache.set(cacheKey, body);
+				};
+
+				if (ctx && typeof ctx.waitUntil === 'function') {
+					// Avoid waiting for the cache to update before responding, if possible.
+					ctx.waitUntil(update());
+				} else {
+					await update();
+				}
 
 				return new Response(null, { status: 200 });
 			}
