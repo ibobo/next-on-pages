@@ -77,9 +77,7 @@ export async function handleSuspenseCacheRequest(request: Request) {
 
 				// eslint-disable-next-line no-console
 				console.log('ctx', ctx);
-				// eslint-disable-next-line no-console
-				console.log('waitUntil', ctx.waitUntil);
-				if (ctx && typeof ctx.waitUntil === 'function') {
+				if (ctx) {
 					// Avoid waiting for the cache to update before responding, if possible.
 					ctx.waitUntil(update());
 				} else {
